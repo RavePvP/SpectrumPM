@@ -43,12 +43,12 @@ use function snappy_uncompress;
 use function strlen;
 use function substr;
 
-final class Client
-{
-    private const int PACKET_LENGTH_SIZE = 4;
+final class Client {
 
-    private const int PACKET_DECODE_NEEDED = 0x00;
-    private const int PACKET_DECODE_NOT_NEEDED = 0x01;
+    private const PACKET_LENGTH_SIZE = 4;
+
+    private const PACKET_DECODE_NEEDED = 0x00;
+    private const PACKET_DECODE_NOT_NEEDED = 0x01;
 
     private string $buffer = "";
 

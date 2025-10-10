@@ -203,12 +203,14 @@ final class ProxyInterface implements NetworkInterface
         [$ip, $port] = explode(":", $address);
         $server = $this->plugin->getServer();
 		unset($clientData["PlayFabId"]); // PlayFabId was removed as of 1.21.111, but LegacyAuthIdentityData still has it /shrug
+		unset($clientData["ThirdPartyNameOnly"]);
 		$clientData = JsonUtils::map($clientData, new ClientData());
 		$identityData = JsonUtils::map($identityData, new LegacyAuthIdentityData());
 		/** @var ClientData $clientData */
 		/** @var LegacyAuthIdentityData $identityData */
 		if ($clientData === null || $identityData === null) {
-            $session->disconnectWithError(KnownTranslationFactory::pocketmine_disconnect_error_authentication());
+		var_dump($clientData === null, $identityData === null);		
+$session->disconnectWithError(KnownTranslationFactory::pocketmine_disconnect_error_authentication());
             return;
         }
 
