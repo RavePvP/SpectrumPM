@@ -43,7 +43,7 @@ final class JsonUtils
     {
         $mapper = new JsonMapper();
         $mapper->bEnforceMapType = false;
-        $mapper->bExceptionOnMissingData = false;
+        $mapper->bExceptionOnMissingData = true;
         $mapper->bExceptionOnUndefinedProperty = true;
 
         try {
