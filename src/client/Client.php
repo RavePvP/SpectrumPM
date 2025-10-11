@@ -91,15 +91,11 @@ final class Client {
         }
 
         // Parse the flags and determine whether the packet needs to be compressed.
-        $flags = Binary::readByte(substr($this->buffer, 0, 1));
-        $isCompressed = ($flags & Client::FLAG_PACKET_COMPRESSED) !== 0;
-        $this->buffer = substr($this->buffer, 1);
-
-        if ($isCompressed) {
-            $payload = @snappy_uncompress(substr($this->buffer, 0, $this->length));
-        } else {
-            $payload = substr($this->buffer, 0, $this->length);
-        }
+        $flags = Binary::readByte($this->buffer[0]);
+        $needsCompression = ($flags & Client::FLAG_PACKET_COMPRESSED) !== 0;
+        $payload = $needsCompression ? 
+            @snappy_uncompress(substr($this->buffer, 1, $this->length - 1)) : 
+            substr($this->buffer, 1, $this->length - 1);
         if ($payload !== false) {
 			if ($this->expected !== null) {
 				$offset = 0;
@@ -115,6 +111,9 @@ final class Client {
 			} else {
 				$this->writer->write(Binary::writeInt($this->id) . $payload);
 			}
+        } else {
+            $this->logger->debug("Failed to decompress/parse payload. Length: " . $this->length . ", Buffer size: " . strlen($this->buffer));
+            $this->close();
         }
 
 		$this->buffer = substr($this->buffer, $this->length);
