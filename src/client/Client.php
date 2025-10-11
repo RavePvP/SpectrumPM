@@ -46,9 +46,10 @@ use function substr;
 final class Client {
 
     private const PACKET_LENGTH_SIZE = 4;
+    private const COMPRESSION_THRESHOLD = 256;
 
-    private const PACKET_DECODE_NEEDED = 0x00;
-    private const PACKET_DECODE_NOT_NEEDED = 0x01;
+    private const FLAG_PACKET_DECODE_NEEDED = 1 << 0;
+    private const FLAG_PACKET_COMPRESSED = 1 << 1;
 
     private string $buffer = "";
 
@@ -89,7 +90,16 @@ final class Client {
             return;
         }
 
-        $payload = @snappy_uncompress(substr($this->buffer, 0, $this->length));
+        // Parse the flags and determine whether the packet needs to be compressed.
+        $flags = Binary::readByte(substr($this->buffer, 0, 1));
+        $isCompressed = ($flags & Client::FLAG_PACKET_COMPRESSED) !== 0;
+        $this->buffer = substr($this->buffer, 1);
+
+        if ($isCompressed) {
+            $payload = @snappy_uncompress(substr($this->buffer, 0, $this->length));
+        } else {
+            $payload = substr($this->buffer, 0, $this->length);
+        }
         if ($payload !== false) {
 			if ($this->expected !== null) {
 				$offset = 0;
@@ -116,11 +126,20 @@ final class Client {
 
     public function write(string $buffer, bool $decodeNeeded): void
     {
-        $compressed = @snappy_compress($buffer);
+        $flags = 0;
+        if ($decodeNeeded) {
+            $flags |= Client::FLAG_PACKET_DECODE_NEEDED;
+        }
+        if (($compressionNeeded = strlen($buffer) > Client::COMPRESSION_THRESHOLD)) {
+            $flags |= Client::FLAG_PACKET_COMPRESSED;
+            $payload = @snappy_compress($buffer);
+        }
+        
+        $payload = $compressionNeeded ? @snappy_compress($buffer) : $buffer;
         $this->stream->write(
-            Binary::writeInt(strlen($compressed) + 1) .
-            Binary::writeByte($decodeNeeded ? Client::PACKET_DECODE_NEEDED : Client::PACKET_DECODE_NOT_NEEDED) .
-            $compressed
+            Binary::writeInt(strlen($payload) + 1) .
+            Binary::writeByte($flags) .
+            $payload
         );
     }
 
