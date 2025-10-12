@@ -34,10 +34,13 @@ use cooldogedev\spectral\Stream;
 use cooldogedev\Spectrum\client\packet\ProxyPacketIds;
 use pocketmine\network\mcpe\protocol\DataPacket;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
+use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use pocketmine\network\mcpe\raklib\SnoozeAwarePthreadsChannelWriter;
 use pocketmine\thread\log\ThreadSafeLogger;
 use pocketmine\utils\Binary;
 use pocketmine\utils\BinaryDataException;
+use pmmp\encoding\LE;
+use pmmp\encoding\ByteBufferReader;
 use function snappy_compress;
 use function snappy_uncompress;
 use function strlen;
@@ -50,6 +53,7 @@ final class Client {
 
     private const FLAG_PACKET_DECODE_NEEDED = 1 << 0;
     private const FLAG_PACKET_COMPRESSED = 1 << 1;
+    private const FLAG_PACKET_BATCHED = 1 << 2;
 
     private string $buffer = "";
 
@@ -93,24 +97,12 @@ final class Client {
         // Parse the flags and determine whether the packet needs to be compressed.
         $flags = Binary::readByte($this->buffer[0]);
         $needsCompression = ($flags & Client::FLAG_PACKET_COMPRESSED) !== 0;
+        $isBatch = ($flags & Client::FLAG_PACKET_BATCHED) !== 0;
         $payload = $needsCompression ? 
             @snappy_uncompress(substr($this->buffer, 1, $this->length - 1)) : 
             substr($this->buffer, 1, $this->length - 1);
         if ($payload !== false) {
-			if ($this->expected !== null) {
-				$offset = 0;
-				$packetID = Binary::readUnsignedVarInt($payload, $offset) & DataPacket::PID_MASK;
-				if ($packetID === $this->expected) {
-					$this->writer->write(Binary::writeInt($this->id) . $payload);
-					$this->expected = match ($packetID) {
-						ProxyPacketIds::CONNECTION_REQUEST => ProtocolInfo::REQUEST_CHUNK_RADIUS_PACKET,
-						ProtocolInfo::REQUEST_CHUNK_RADIUS_PACKET => ProtocolInfo::SET_LOCAL_PLAYER_AS_INITIALIZED_PACKET,
-						ProtocolInfo::SET_LOCAL_PLAYER_AS_INITIALIZED_PACKET => null,
-					};
-				}
-			} else {
-				$this->writer->write(Binary::writeInt($this->id) . $payload);
-			}
+			$isBatch ? $this->handleBatch($payload) : $this->handlePacket($payload);
         } else {
             $this->logger->debug("Failed to decompress/parse payload. Length: " . $this->length . ", Buffer size: " . strlen($this->buffer));
             $this->close();
@@ -121,6 +113,32 @@ final class Client {
 		if (strlen($this->buffer) >= Client::PACKET_LENGTH_SIZE) {
 			$this->read();
 		}
+    }
+
+    private function handleBatch(string $payload): void {
+        $reader = new ByteBufferReader($payload);
+        while ($reader->getUnreadLength() > 0) {
+            $payloadLength = LE::readUnsignedInt($reader);
+            $payload = $reader->readByteArray($payloadLength);
+            $this->handlePacket($payload);
+        }
+    }
+
+    private function handlePacket(string $payload): void {
+        if ($this->expected !== null) {
+            $offset = 0;
+            $packetID = Binary::readUnsignedVarInt($payload, $offset) & DataPacket::PID_MASK;
+            if ($packetID === $this->expected) {
+                $this->writer->write(Binary::writeInt($this->id) . $payload);
+                $this->expected = match ($packetID) {
+                    ProxyPacketIds::CONNECTION_REQUEST => ProtocolInfo::REQUEST_CHUNK_RADIUS_PACKET,
+                    ProtocolInfo::REQUEST_CHUNK_RADIUS_PACKET => ProtocolInfo::SET_LOCAL_PLAYER_AS_INITIALIZED_PACKET,
+                    ProtocolInfo::SET_LOCAL_PLAYER_AS_INITIALIZED_PACKET => null,
+                };
+            }
+        } else {
+            $this->writer->write(Binary::writeInt($this->id) . $payload);
+        }
     }
 
     public function write(string $buffer, bool $decodeNeeded): void
