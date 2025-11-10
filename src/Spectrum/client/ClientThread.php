@@ -74,13 +74,19 @@ final class ClientThread extends Thread
             mainToThread: $this->mainToThread,
             threadToMain: $this->threadToMain,
         );
-        $listener->start();
-        $this->logger->info("Listening on port " . $this->port);
-        while ($this->running) {
-            $listener->tick();
+
+        try {
+            $listener->start();
+            $this->logger->info("Listening on port " . $this->port);
+            while ($this->running) {
+                $listener->tick();
+            }
+        } finally {
+            $listener->close();
+            unset($listener); // Explicitly unset
+            gc_collect_cycles(); // Force garbage collection
+            $this->logger->info("Stopped listening on port " . $this->port);
         }
-        $listener->close();
-        $this->logger->info("Stopped listening on port " . $this->port);
     }
 
     public function quit(): void

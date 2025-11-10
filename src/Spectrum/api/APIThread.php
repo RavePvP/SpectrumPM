@@ -47,9 +47,6 @@ use Socket;
 use function gc_enable;
 use function ini_set;
 use function sleep;
-use function socket_close;
-use function socket_connect;
-use function socket_create;
 use function socket_last_error;
 use function socket_recv;
 use function socket_strerror;
@@ -97,56 +94,65 @@ final class APIThread extends Thread
 
         $this->running = true;
         $this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-        $this->connect();
-        $this->write(ConnectionRequestPacket::create($this->token));
-        $this->flush();
-
-		$attempts = 10;
-		do {
-			$connectionResponseBytes = $this->read();
-			usleep(100);
-		} while ($connectionResponseBytes === null && $attempts++ < 10);
-        if ($connectionResponseBytes === null) {
-            $this->logger->error("Failed to read connection response");
-            return;
-        }
 
         try {
-            $connectionResponseId = Binary::readLInt(substr($connectionResponseBytes, 0, 4));
-            if ($connectionResponseId !== PacketIds::CONNECTION_RESPONSE) {
-                $this->logger->error("Expected connection response, got " . $connectionResponseId);
+            $this->connect();
+            $this->write(ConnectionRequestPacket::create($this->token));
+            $this->flush();
+
+            $attempts = 0;
+            do {
+                $connectionResponseBytes = $this->read();
+                usleep(15000);
+            } while ($connectionResponseBytes === null && ++$attempts < 10);
+
+            if ($connectionResponseBytes === null) {
+                $this->logger->error("Failed to read connection response");
                 return;
             }
-        } catch (BinaryDataException) {
-            $this->logger->error("Failed to decode connection response packet id");
-            return;
-        }
 
-        try {
-            $packet = new ConnectionResponsePacket();
-            $packet->decode(new BinaryStream($connectionResponseBytes));
-            if ($packet->response !== ConnectionResponsePacket::RESPONSE_SUCCESS) {
-                $this->logger->error("Connection failed, code " . $packet->response);
+            try {
+                $connectionResponseId = Binary::readLInt(substr($connectionResponseBytes, 0, 4));
+                if ($connectionResponseId !== PacketIds::CONNECTION_RESPONSE) {
+                    $this->logger->error("Expected connection response, got " . $connectionResponseId);
+                    return;
+                }
+            } catch (BinaryDataException) {
+                $this->logger->error("Failed to decode connection response packet id");
                 return;
             }
-        } catch (BinaryDataException) {
-            $this->logger->error("Failed to decode connection response");
-            return;
-        }
 
-        $this->logger->info("Successfully connected to the API");
-        while ($this->running) {
-            $this->synchronized(function (): void {
-                if ($this->running && $this->buffer->count() === 0) {
-                    $this->wait();
+            try {
+                $packet = new ConnectionResponsePacket();
+                $packet->decode(new BinaryStream($connectionResponseBytes));
+                if ($packet->response !== ConnectionResponsePacket::RESPONSE_SUCCESS) {
+                    $this->logger->error("Connection failed, code " . $packet->response);
+                    return;
+                }
+            } catch (BinaryDataException) {
+                $this->logger->error("Failed to decode connection response");
+                return;
+            }
+
+            $this->logger->info("Successfully connected to the API");
+            while ($this->running) {
+                $this->synchronized(function (): void {
+                    if ($this->running && $this->buffer->count() === 0) {
+                        $this->wait();
+                    }
+                });
+
+                $this->flush();
+                usleep(15000);
+            }
+        } finally {
+            @socket_close($this->socket);
+            $this->synchronized(function(): void {
+                while ($this->buffer->shift() !== null) {
                 }
             });
-
-            $this->flush();
+            $this->logger->debug("Disconnected from API");
         }
-
-        @socket_close($this->socket);
-        $this->logger->debug("Disconnected from API");
     }
 
     public function quit(): void
@@ -198,17 +204,31 @@ final class APIThread extends Thread
 
     private function flush(): void
     {
+        $failedPayloads = [];
+
         while ($this->running && ($payload = $this->buffer->shift()) !== null) {
             if (@socket_write($this->socket, Binary::writeInt(strlen($payload)) . $payload) === false) {
-                $this->buffer[] = $payload;
-                $this->connect();
-                $this->flush();
+                $failedPayloads[] = $payload;
+                break;
             }
+            usleep(15000);
+        }
+
+        if (!empty($failedPayloads)) {
+            $this->connect();
+            $this->synchronized(function() use ($failedPayloads): void {
+                foreach ($failedPayloads as $payload) {
+                    $this->buffer[] = $payload;
+                }
+            });
         }
     }
 
     private function connect(): void
     {
+        @socket_close($this->socket);
+        $this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+
         while (!@socket_connect($this->socket, $this->address, $this->port)) {
             if (!$this->running) {
                 return;
