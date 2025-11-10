@@ -51,8 +51,6 @@ final class ClientThread extends Thread
         public ThreadSafeArray               $threadToMain,
 
         private readonly ThreadSafeLogger    $logger,
-
-        private readonly string              $autoloaderPath,
         private readonly int                 $port,
     ) {}
 
@@ -65,8 +63,6 @@ final class ClientThread extends Thread
         ini_set("memory_limit", "512M");
 
         GlobalLogger::set($this->logger);
-
-        require $this->autoloaderPath;
 
         $this->running = true;
 
