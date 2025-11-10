@@ -80,7 +80,7 @@ final class ClientThread extends Thread
             $this->logger->info("Listening on port " . $this->port);
             while ($this->running) {
                 $listener->tick();
-                usleep(15000);
+                #usleep(15000);
             }
         } finally {
             $listener->close();
