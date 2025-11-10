@@ -1,9 +1,8 @@
 name: Spectrum
-main: cooldogedev\Spectrum\Spectrum
-description: Spectrum is an implementation of the Spectrum proxy for PocketMine-MP
-src-namespace-prefix: cooldogedev\Spectrum
 version: 0.0.19
-api: [ 5.0.0 ]
+main: cooldogedev\Spectrum\Spectrum
+api: [5.0.0]
 author: cooldogedev
+description: Spectrum is an implementation of the Spectrum proxy for PocketMine-MP
 website: https://github.com/cooldogedev/spectrum-pm
-load: STARTUP
+src-namespace-prefix: cooldogedev

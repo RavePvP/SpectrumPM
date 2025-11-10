@@ -37,7 +37,6 @@ use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use function json_decode;
 use function json_encode;
 use const JSON_INVALID_UTF8_IGNORE;
-use const JSON_THROW_ON_ERROR;
 
 final class ConnectionRequestPacket extends ProxyPacket
 {

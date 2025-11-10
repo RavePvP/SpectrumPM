@@ -32,15 +32,14 @@ namespace cooldogedev\Spectrum\client;
 
 use cooldogedev\spectral\Stream;
 use cooldogedev\Spectrum\client\packet\ProxyPacketIds;
+use pmmp\encoding\ByteBufferReader;
+use pmmp\encoding\LE;
 use pocketmine\network\mcpe\protocol\DataPacket;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
-use pocketmine\network\mcpe\protocol\serializer\CommonTypes;
 use pocketmine\network\mcpe\raklib\SnoozeAwarePthreadsChannelWriter;
 use pocketmine\thread\log\ThreadSafeLogger;
 use pocketmine\utils\Binary;
 use pocketmine\utils\BinaryDataException;
-use pmmp\encoding\LE;
-use pmmp\encoding\ByteBufferReader;
 use function snappy_compress;
 use function snappy_uncompress;
 use function strlen;

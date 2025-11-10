@@ -30,14 +30,14 @@ declare(strict_types=1);
 
 namespace cooldogedev\Spectrum\client;
 
+use cooldogedev\spectral\Listener;
+use cooldogedev\spectral\ServerConnection;
+use cooldogedev\spectral\Stream;
 use cooldogedev\spectral\util\Address;
 use cooldogedev\Spectrum\client\packet\DisconnectPacket;
 use cooldogedev\Spectrum\client\packet\LoginPacket;
 use cooldogedev\Spectrum\client\packet\ProxyPacketPool;
 use cooldogedev\Spectrum\client\packet\ProxySerializer;
-use cooldogedev\spectral\Listener;
-use cooldogedev\spectral\ServerConnection;
-use cooldogedev\spectral\Stream;
 use Exception;
 use pmmp\thread\ThreadSafeArray;
 use pocketmine\network\mcpe\raklib\PthreadsChannelReader;

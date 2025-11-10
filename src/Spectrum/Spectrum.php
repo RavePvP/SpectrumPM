@@ -30,11 +30,9 @@ declare(strict_types=1);
 
 namespace cooldogedev\Spectrum;
 
-use Closure;
 use cooldogedev\Spectrum\api\APIThread;
 use cooldogedev\Spectrum\client\packet\ProxyPacketIds;
 use cooldogedev\Spectrum\network\ProxyInterface;
-use cooldogedev\Spectrum\util\ComposerRegisterAsyncTask;
 use pocketmine\event\EventPriority;
 use pocketmine\event\server\NetworkInterfaceRegisterEvent;
 use pocketmine\network\mcpe\encryption\EncryptionContext;
@@ -43,10 +41,6 @@ use pocketmine\network\mcpe\protocol\types\login\AuthenticationData;
 use pocketmine\network\mcpe\raklib\RakLibInterface;
 use pocketmine\network\query\DedicatedQueryNetworkInterface;
 use pocketmine\plugin\PluginBase;
-use function is_file;
-use const spectrum\COMPOSER_AUTOLOADER_PATH;
-
-require_once "CoreConstants.php";
 
 final class Spectrum extends PluginBase
 {
@@ -88,21 +82,9 @@ final class Spectrum extends PluginBase
     public readonly ProxyInterface $interface;
 	public readonly ?APIThread $api;
 
-    protected function onLoad(): void
-    {
-        if (!is_file(COMPOSER_AUTOLOADER_PATH)) {
-            $this->getLogger()->error("Composer autoloader not found at " . COMPOSER_AUTOLOADER_PATH);
-            $this->getLogger()->error("Please install or update Composer dependencies or use provided builds.");
-            $this->getServer()->shutdown();
-            return;
-        }
-        require_once(COMPOSER_AUTOLOADER_PATH);
-        $asyncPool = $this->getServer()->getAsyncPool();
-        $asyncPool->addWorkerStartHook(static function (int $workerId) use ($asyncPool): void {
-            $asyncPool->submitTaskToWorker(new ComposerRegisterAsyncTask(COMPOSER_AUTOLOADER_PATH), $workerId);
-        });
-    }
-
+    /**
+     * @throws \ReflectionException
+     */
     protected function onEnable(): void
     {
 		EncryptionContext::$ENABLED = false;
@@ -111,8 +93,9 @@ final class Spectrum extends PluginBase
                 logger: $this->getServer()->getLogger(),
                 token: $this->getConfig()->getNested("api.token"),
                 address: $this->getConfig()->getNested("api.address"),
-                port: $this->getConfig()->getNested("api.port"),
+                port: $this->getConfig()->getNested("api.port")
             );
+
             $this->api->start();
         } else {
             $this->api = null;
@@ -121,6 +104,7 @@ final class Spectrum extends PluginBase
 		$this->interface = new ProxyInterface($this);
         $server = $this->getServer();
         $server->getNetwork()->registerInterface($this->interface);
+
         if ($this->getConfig()->get("disable-raklib")) {
             $server->getPluginManager()->registerEvent(
                 event: NetworkInterfaceRegisterEvent::class,
