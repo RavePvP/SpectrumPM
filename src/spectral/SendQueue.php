@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace cooldogedev\spectral;
 
-use pmmp\encoding\ByteBuffer;
+use pmmp\encoding\ByteBufferWriter;
 use function array_shift;
 use function count;
 use function min;
@@ -14,11 +14,11 @@ final class SendQueue
 {
     private array $queue = [];
     private int $mss = Protocol::MIN_PACKET_SIZE;
-    private ByteBuffer $pk;
+    private ByteBufferWriter $pk;
 
     public function __construct()
     {
-        $this->pk = new ByteBuffer();
+        $this->pk = new ByteBufferWriter();
         $this->pk->reserve(Protocol::MAX_PACKET_SIZE);
     }
 
@@ -57,14 +57,13 @@ final class SendQueue
             array_shift($this->queue);
             $this->pk->writeByteArray($entry);
         }
-        return $this->pk->toString();
+        return $this->pk->getData();
     }
 
     public function flush(): void
     {
         $this->pk->clear();
-        $this->pk->setReadOffset(0);
-        $this->pk->setWriteOffset(0);
+        $this->pk->setOffset(0);
     }
 
     public function clear(): void
