@@ -122,7 +122,7 @@ final class Spectrum extends PluginBase
 
     public function shouldPacketDecode(int $packetID): bool
     {
-        return $this->decode[$packetID] ?? false;
+        return true;
     }
 
 	public function registerPacketDecode(int $packetID, bool $value): void
